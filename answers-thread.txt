@@ -1,0 +1,15 @@
+Why are there missing keys with 2 or more threads, but not with 1 thread?
+
+Answer: Race condition in put(): when two threads insert into the same bucket
+concurrently, both read table[i] at the same time (e.g., pointing to node A),
+then both call insert() with next = A. The second write overwrites the first,
+so the first inserted node is lost from the linked list.
+--> Sequence of events:
+- Thread 1: i = key1 % NBUCKET = 2, reads table[2] → node A
+- Thread 2: i = key2 % NBUCKET = 2, reads table[2] → node A
+- Thread 1: insert key1 → table[2] = new_node1, new_node1->next = A
+- Thread 2: insert key2 → table[2] = new_node2, new_node2->next = A  ← overwrites!
+=> Result: new_node1 is lost, key1 is missing.
+
+How to fix: use one mutex lock per bucket (locks[NBUCKET]). Threads operating on
+different buckets run in parallel; threads on the same bucket serialize.
